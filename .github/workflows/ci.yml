@@ -47,10 +47,25 @@ jobs:
           version: ${{ env.DAGGER_VERSION }}
           call: check --version=${{ github.ref_name }} export --path=./dist
 
+      - name: Build release notes from CHANGELOG
+        run: |
+          chmod +x scripts/release-notes.sh
+          scripts/release-notes.sh "${{ github.ref_name }}" > release-notes.md
+          cat release-notes.md
+
       - name: Create GitHub Release
         uses: softprops/action-gh-release@v2
         with:
           name: ${{ github.ref_name }}
+          body_path: release-notes.md
           files: dist/*
-          generate_release_notes: true
           fail_on_unmatched_files: true
+
+      - name: Update Homebrew tap
+        env:
+          VERSION: ${{ github.ref_name }}
+          HOMEBREW_TAP_TOKEN: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          GITHUB_REPOSITORY: ${{ github.repository }}
+        run: |
+          chmod +x scripts/update-homebrew-formula.sh
+          scripts/update-homebrew-formula.sh

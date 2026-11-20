@@ -13,7 +13,10 @@ Current version: see `internal/version/version.go`.
   - `dagger call test` / `build` / `check` / `targets`.
 - **GitHub Actions**
   - CI on push/PR: Dagger tests.
-  - Tag `v*`: test + cross-build + GitHub Release with binaries.
+  - Tag `v*`: test + cross-build + GitHub Release with binaries and CHANGELOG-based release notes.
+  - On release: update Homebrew tap formula (`bbuehrig/homebrew-tap`).
+- **Homebrew**
+  - Install via `brew install bbuehrig/tap/mtwav-split`; formula auto-updates on each tagged release.
 
 - **CLI**
   - `-input` accepts a single WAV **or a directory** of WAV files; each multitrack file is split in turn.

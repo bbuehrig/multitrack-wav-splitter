@@ -12,16 +12,27 @@ Split a multitrack WAV file into individual mono WAV files. Useful when recordin
 - **Batch directory mode** – Pass a folder of multitrack WAVs; each file is split automatically. Mono files are skipped.
 - **Delete originals** – Optional `-delete-original` removes each source multitrack WAV after a successful split.
 - **Versioned builds** – Semver in `internal/version/version.go`; printed on every run and via `-version`. Release tags build multi-platform binaries with Dagger/GitHub Actions.
+- **Homebrew** – `brew install bbuehrig/tap/mtwav-split`; formula updates on each release.
 - **Browser GUI (WASM)** – React app that runs the splitter in the browser via WebAssembly: drop a WAV file and download individual mono tracks.
 - **PCM only** – Supports standard uncompressed PCM WAV (any channel count, common bit depths).
 - **Interleaved format** – Correctly deinterleaves multichannel samples (Ch1-S1, Ch2-S1, … ChN-S1, Ch1-S2, …) into one mono file per channel.
 
 ## Installation
 
+### Homebrew (macOS / Linux)
+
+```bash
+brew install bbuehrig/tap/mtwav-split
+brew upgrade mtwav-split
+mtwav-split -version
+```
+
+The [bbuehrig/homebrew-tap](https://github.com/bbuehrig/homebrew-tap) formula is updated automatically on each GitHub Release (prebuilt `darwin` / `linux` binaries).
+
 ### From source
 
 ```bash
-git clone https://github.com/bbu/multitrack-wav-splitter.git
+git clone https://github.com/bbuehrig/multitrack-wav-splitter.git
 cd multitrack-wav-splitter
 go build -o mtwav-split ./cmd/mtwav-split
 ```
@@ -50,7 +61,10 @@ dagger call build --version=0.2.0 export --path=./dist
 CI ([`.github/workflows/ci.yml`](.github/workflows/ci.yml), Dagger **v0.21.10**):
 
 - **Push / PR** (no version tag): runs tests only (`dagger call test`)
-- **Version tag** (`v*`, e.g. `v0.2.0`): runs tests + cross-build and publishes a GitHub Release with the binaries
+- **Version tag** (`v*`, e.g. `v0.2.0`):
+  - tests + cross-build
+  - GitHub Release with binaries and **CHANGELOG history** as release notes
+  - Homebrew tap formula update (`bbuehrig/homebrew-tap`)
 
 ```bash
 # After bumping internal/version/version.go + CHANGELOG
@@ -181,7 +195,7 @@ CC0 1.0 Universal. See [LICENSE](LICENSE).
 ## Versioning & releasing
 
 - Source of truth: `internal/version/version.go` (`Version`, no leading `v`).
-- Changelog: `CHANGELOG.md`.
+- Changelog: `CHANGELOG.md` (also rendered onto the GitHub Release page).
 - Local check: `./mtwav-split -version` or any split run (prints `mtwav-split <version>`).
 
 To publish a release:
@@ -194,4 +208,17 @@ git tag -a v0.2.0 -m "v0.2.0"
 git push origin v0.2.0
 ```
 
-GitHub Actions (Dagger) runs tests, cross-compiles all platforms with that version baked in, and creates a GitHub Release with the binaries.
+GitHub Actions (Dagger) then:
+
+1. Runs tests and cross-compiles all platforms (version baked in via `-ldflags`).
+2. Creates a GitHub Release with the binaries; release notes come from `CHANGELOG.md` (`scripts/release-notes.sh`: current section + full history).
+3. Updates [bbuehrig/homebrew-tap](https://github.com/bbuehrig/homebrew-tap) `Formula/mtwav-split.rb` with new URLs/checksums (`scripts/update-homebrew-formula.sh`).
+
+### One-time: Homebrew tap token
+
+The release job needs write access to the tap repo. Create a fine-grained PAT (or classic PAT) with **Contents: Read and write** on `bbuehrig/homebrew-tap`, then add it as repository secret:
+
+- Secret name: `HOMEBREW_TAP_TOKEN`
+- Repo: `bbuehrig/multitrack-wav-splitter` → Settings → Secrets and variables → Actions
+
+Without that secret, the Release still publishes; only the Homebrew formula update is skipped.
