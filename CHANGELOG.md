@@ -4,6 +4,14 @@ Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
 Versioning follows [Semantic Versioning](https://semver.org/).
 Current version: see `internal/version/version.go`.
 
+### 0.2.1 – Homebrew tap + release notes
+
+- **Homebrew**
+  - Tap `bbuehrig/homebrew-tap`; `brew install bbuehrig/tap/mtwav-split`.
+  - CI updates the formula on each version tag (requires `HOMEBREW_TAP_TOKEN`).
+- **Releases**
+  - GitHub Release notes are generated from `CHANGELOG.md` (current section + full history).
+
 ### 0.2.0 – Batch directory mode + CI/release
 
 - **Versioning**
