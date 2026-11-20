@@ -1,0 +1,9 @@
+{
+  "name": "multitrack-wav-splitter",
+  "engineVersion": "v0.21.10",
+  "sdk": {
+    "source": "go"
+  },
+  "source": "dagger",
+  "disableDefaultFunctionCaching": true
+}

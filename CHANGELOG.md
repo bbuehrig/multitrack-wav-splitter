@@ -1,5 +1,27 @@
 ## Changelog
 
+Format based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/).
+Versioning follows [Semantic Versioning](https://semver.org/).
+Current version: see `internal/version/version.go`.
+
+### 0.2.0 – Batch directory mode + CI/release
+
+- **Versioning**
+  - App version in `internal/version/version.go`; CLI `-version` flag; printed as `mtwav-split <version>` on every run; injected via `-ldflags` in Dagger/Makefile builds.
+- **Dagger**
+  - Cross-build module for Linux/Windows/macOS (`amd64`/`arm64`/`386`/`armv7` where supported).
+  - `dagger call test` / `build` / `check` / `targets`.
+- **GitHub Actions**
+  - CI on push/PR: Dagger tests.
+  - Tag `v*`: test + cross-build + GitHub Release with binaries.
+
+- **CLI**
+  - `-input` accepts a single WAV **or a directory** of WAV files; each multitrack file is split in turn.
+  - New `-delete-original` flag: removes the source multitrack WAV after a successful split (per file in batch).
+  - Directory mode defaults `-output` to the input directory; mono / non-multitrack WAVs are skipped.
+- **Splitter**
+  - `ListWAVFiles` / `SplitDir` for non-recursive batch processing with skip + delete support.
+
 ### 0.1.0 – Initial public version
 
 - **Core splitter**

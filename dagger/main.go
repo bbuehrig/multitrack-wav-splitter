@@ -1,0 +1,190 @@
+// Multitrack WAV Splitter — Dagger CI/build module.
+//
+// Cross-compiles mtwav-split for common OS/arch combinations and runs tests.
+package main
+
+import (
+	"context"
+	"fmt"
+	"path"
+	"runtime"
+	"strings"
+
+	"dagger/multitrack-wav-splitter/internal/dagger"
+)
+
+type MultitrackWavSplitter struct{}
+
+type buildTarget struct {
+	GOOS   string
+	GOARCH string
+	GOARM  string // only for GOARCH=arm (e.g. "7")
+}
+
+// Common desktop/server targets: Linux / Windows / macOS × 32/64-bit × Intel/ARM
+// where Go still supports the combination.
+func defaultTargets() []buildTarget {
+	return []buildTarget{
+		{GOOS: "linux", GOARCH: "amd64"},
+		{GOOS: "linux", GOARCH: "arm64"},
+		{GOOS: "linux", GOARCH: "386"},
+		{GOOS: "linux", GOARCH: "arm", GOARM: "7"},
+		{GOOS: "windows", GOARCH: "amd64"},
+		{GOOS: "windows", GOARCH: "arm64"},
+		{GOOS: "windows", GOARCH: "386"},
+		{GOOS: "darwin", GOARCH: "amd64"},
+		{GOOS: "darwin", GOARCH: "arm64"},
+	}
+}
+
+func (t buildTarget) binaryName() string {
+	name := fmt.Sprintf("mtwav-split_%s_%s", t.GOOS, t.GOARCH)
+	if t.GOARM != "" {
+		name += "v" + t.GOARM
+	}
+	if t.GOOS == "windows" {
+		name += ".exe"
+	}
+	return name
+}
+
+func goImage(goVersion string) string {
+	v := strings.TrimPrefix(strings.TrimSpace(goVersion), "go")
+	if v == "" {
+		v = "1.25"
+	}
+	return "golang:" + v + "-bookworm"
+}
+
+func (m *MultitrackWavSplitter) base(source *dagger.Directory, goVersion string) *dagger.Container {
+	src := source.
+		WithoutDirectory(".git").
+		WithoutDirectory("dist").
+		WithoutDirectory("build").
+		WithoutDirectory("dagger").
+		WithoutDirectory("web/node_modules").
+		WithoutDirectory("web/dist").
+		WithoutDirectory(".idea")
+
+	return dag.Container().
+		From(goImage(goVersion)).
+		WithEnvVariable("CGO_ENABLED", "0").
+		WithEnvVariable("GOTOOLCHAIN", "local").
+		WithMountedCache("/go/pkg/mod", dag.CacheVolume("mtwav-split-go-mod")).
+		WithMountedCache("/root/.cache/go-build", dag.CacheVolume("mtwav-split-go-build")).
+		WithDirectory("/src", src).
+		WithWorkdir("/src")
+}
+
+// Test runs go test ./...
+func (m *MultitrackWavSplitter) Test(
+	ctx context.Context,
+	// Project root (contains go.mod, cmd/, internal/, …)
+	// +defaultPath="."
+	source *dagger.Directory,
+	// Go Docker tag, e.g. "1.25"
+	// +optional
+	// +default="1.25"
+	goVersion string,
+) (string, error) {
+	return m.base(source, goVersion).
+		WithExec([]string{"go", "test", "./..."}).
+		Stdout(ctx)
+}
+
+func normalizeAppVersion(v string) string {
+	v = strings.TrimSpace(v)
+	v = strings.TrimPrefix(v, "v")
+	if v == "" {
+		return "dev"
+	}
+	return v
+}
+
+// Build cross-compiles mtwav-split for Linux, Windows and macOS
+// (amd64/arm64/386/armv7 where supported). Returns a directory of binaries.
+func (m *MultitrackWavSplitter) Build(
+	// Project root (contains go.mod, cmd/, internal/, …)
+	// +defaultPath="."
+	source *dagger.Directory,
+	// Go Docker tag, e.g. "1.25"
+	// +optional
+	// +default="1.25"
+	goVersion string,
+	// App semver (no required "v" prefix). Empty → "dev".
+	// +optional
+	version string,
+) *dagger.Directory {
+	appVer := normalizeAppVersion(version)
+	ldflags := fmt.Sprintf("-s -w -X github.com/bbu/multitrack-wav-splitter/internal/version.Version=%s", appVer)
+	golang := m.base(source, goVersion)
+	outputs := dag.Directory()
+
+	for _, t := range defaultTargets() {
+		outName := t.binaryName()
+		outPath := path.Join("/out", outName)
+
+		ctr := golang.
+			WithEnvVariable("GOOS", t.GOOS).
+			WithEnvVariable("GOARCH", t.GOARCH).
+			WithEnvVariable("CGO_ENABLED", "0")
+		if t.GOARM != "" {
+			ctr = ctr.WithEnvVariable("GOARM", t.GOARM)
+		}
+
+		built := ctr.WithExec([]string{
+			"go", "build",
+			"-trimpath",
+			"-ldflags", ldflags,
+			"-o", outPath,
+			"./cmd/mtwav-split",
+		})
+
+		outputs = outputs.WithFile(outName, built.File(outPath))
+	}
+
+	index := "Multitrack WAV Splitter — release binaries\n"
+	index += fmt.Sprintf("version %s\n", appVer)
+	index += fmt.Sprintf("built with Go %s (host %s/%s)\n\n", goVersion, runtime.GOOS, runtime.GOARCH)
+	for _, t := range defaultTargets() {
+		index += t.binaryName() + "\n"
+	}
+	outputs = outputs.WithNewFile("BINARIES.txt", index)
+
+	return outputs
+}
+
+// Check runs tests, then builds all release binaries.
+func (m *MultitrackWavSplitter) Check(
+	ctx context.Context,
+	// Project root
+	// +defaultPath="."
+	source *dagger.Directory,
+	// Go Docker tag
+	// +optional
+	// +default="1.25"
+	goVersion string,
+	// App semver (no required "v" prefix). Empty → "dev".
+	// +optional
+	version string,
+) (*dagger.Directory, error) {
+	if _, err := m.Test(ctx, source, goVersion); err != nil {
+		return nil, err
+	}
+	return m.Build(source, goVersion, version), nil
+}
+
+// Targets lists the GOOS/GOARCH combinations that Build produces.
+func (m *MultitrackWavSplitter) Targets() string {
+	var b strings.Builder
+	for _, t := range defaultTargets() {
+		line := t.GOOS + "/" + t.GOARCH
+		if t.GOARM != "" {
+			line += " GOARM=" + t.GOARM
+		}
+		line += " → " + t.binaryName()
+		b.WriteString(line)
+		b.WriteByte('\n')
+	}
+	return b.String()
+}

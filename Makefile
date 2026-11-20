@@ -1,14 +1,18 @@
 # Multitrack WAV Splitter – build for multiple OS/arch
 # Output: build/mtwav-split-<os>-<arch>[.exe]
+# Prefer Dagger for release builds: dagger call check --version=0.2.0 export --path=./dist
 
 BINARY := mtwav-split
 BUILD_DIR := build
 MAIN := ./cmd/mtwav-split
+VERSION ?= $(shell grep -E '^\s*var Version' internal/version/version.go | sed -E 's/.*"([^"]+)".*/\1/')
+LDFLAGS := -s -w -X github.com/bbu/multitrack-wav-splitter/internal/version.Version=$(VERSION)
 
 # Build for host OS/arch only
 .PHONY: build
 build:
-	go build -o $(BUILD_DIR)/$(BINARY) $(MAIN)
+	@mkdir -p $(BUILD_DIR)
+	go build -trimpath -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY) $(MAIN)
 
 # Cross-compilation targets
 OS_ARCHES := \
@@ -25,7 +29,7 @@ build-all: $(OS_ARCHES)
 define build_target
 $(1):
 	@mkdir -p $(BUILD_DIR)
-	GOOS=$(word 1,$(subst -, ,$(1))) GOARCH=$(word 2,$(subst -, ,$(1))) go build -o $(BUILD_DIR)/$(BINARY)-$(1)$(if $(filter windows-%,$(1)),.exe,) $(MAIN)
+	GOOS=$(word 1,$(subst -, ,$(1))) GOARCH=$(word 2,$(subst -, ,$(1))) go build -trimpath -ldflags "$(LDFLAGS)" -o $(BUILD_DIR)/$(BINARY)-$(1)$(if $(filter windows-%,$(1)),.exe,) $(MAIN)
 	@echo "Built $(BUILD_DIR)/$(BINARY)-$(1)$(if $(filter windows-%,$(1)),.exe,)"
 endef
 
@@ -72,4 +76,4 @@ test:
 	go test ./...
 
 clean:
-	rm -rf $(BUILD_DIR)
+	rm -rf $(BUILD_DIR) dist

@@ -1,0 +1,56 @@
+name: CI
+
+on:
+  push:
+    branches: [main, master]
+    tags: ["v*"]
+  pull_request:
+  workflow_dispatch:
+
+concurrency:
+  group: ${{ github.workflow }}-${{ github.ref }}
+  cancel-in-progress: true
+
+env:
+  DAGGER_VERSION: "0.21.10"
+
+jobs:
+  test:
+    name: Test
+    if: ${{ !startsWith(github.ref, 'refs/tags/') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: read
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Run tests (Dagger)
+        uses: dagger/dagger-for-github@v8.4.1
+        with:
+          version: ${{ env.DAGGER_VERSION }}
+          call: test
+
+  release:
+    name: Build & release
+    if: ${{ startsWith(github.ref, 'refs/tags/v') }}
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Test + cross-build (Dagger)
+        uses: dagger/dagger-for-github@v8.4.1
+        with:
+          version: ${{ env.DAGGER_VERSION }}
+          call: check --version=${{ github.ref_name }} export --path=./dist
+
+      - name: Create GitHub Release
+        uses: softprops/action-gh-release@v2
+        with:
+          name: ${{ github.ref_name }}
+          files: dist/*
+          generate_release_notes: true
+          fail_on_unmatched_files: true

@@ -10,6 +10,12 @@
 
 # Build output
 build/
+dist/
+
+# Local / release binaries (outside build/ and dist/)
+/mtwav-split
+/mtwav-split_*
+mtwav-split-*.exe
 
 # Test binary, built with `go test -c`
 *.test
@@ -34,6 +40,9 @@ go.work.sum
 web/node_modules/
 web/dist/
 
-# Editor/IDE
-# .idea/
-# .vscode/
+# Editor/IDE / OS
+.idea/
+.vscode/
+*.swp
+*~
+.DS_Store
